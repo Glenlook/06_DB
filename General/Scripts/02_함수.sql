@@ -289,6 +289,348 @@ SELECT
     TO_CHAR(SALARY * 12, 'L999,999,999') 연봉
 FROM EMPLOYEE;
 
+------------------------------------------------
+
+/* 날짜 -> 문자열
+ * 
+ * YY    : 년도(짧게) EX) 24
+ * YYYY  : 년도(길게) EX) 2024
+ * 
+ * RR    : 년도(짧게) EX) 24
+ * RRRR  : 년도(길게) EX) 2024
+ * 
+ * MM : 월
+ * DD : 일
+ * 
+ * AM/PM : 오전/오후
+ * 
+ * HH   : 시간 (12시간)
+ * HH24 : 시간 (24시간)
+ * MI   : 분
+ * SS   : 초
+ * 
+ * DAY : 요일(전체) EX) 월요일, MONDAY
+ * DY  : 요일(짧게) EX) 월, MON
+ * */
+
+
+-- 오늘 날짜 YYYY/MM/DD 문자열로 변환
+SELECT TO_CHAR(CURRENT_DATE, 'YYYY/MM/DD')
+FROM DUAL;
+
+-- '2024-08-16 금요일'
+SELECT TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD DAY')
+FROM DUAL;
+
+-- '2024.08.16 (금) 오후 14:10:12'
+SELECT TO_CHAR(CURRENT_DATE, 'YYYY.MM.DD (DY) PM HH24:MI:SS')          
+FROM DUAL;
+
+
+--  /, (), :, - 는 일반적으로 날짜 표기 시 사용하는 기호
+--> 패턴으로 인식되어 오류가 발생하지 않음!
+
+-- '24년 08월 16일 금요일 오후 2시 15분 30초'
+SELECT
+	TO_CHAR(CURRENT_DATE,
+		'YY"년" MM"월" DD"일" DAY PM HH"시" MI"분" SS"초"')
+FROM DUAL;
+-- SQL Error [1821] [22008]: ORA-01821:
+--  날짜 형식이 부적합합니다
+--> 년,월,일,시,분,초는 시간 관련 기호로 인식되지 않아서 오류 발생!!
+
+--> [해결방법] : ""로 감싸서 패턴을 나타내는 기호가 아닌
+--             있는 그대로 출력하는 글자임을 명시
+
+
+------------------------------------------------------
+
+
+-- TO_DATE(문자열 | 숫자 [, 포맷])
+
+-- 문자열 또는 숫자를 날짜 형식으로 변환
+
+SELECT 
+	'2024-08-16' 문자열,
+	TO_DATE('2024-08-16') 날짜
+FROM DUAL;
+-- TO_DATE에 매개 변수가 한 개만 작성될 수 있는 경우
+  --> () 내부 문자열이 일반적인 날짜/시간 형식일 경우에만 가능
+
+-- 일반적인 형식이 아닌 경우 포맷 지정 필수!!!
+SELECT TO_DATE('16082024', 'DDMMYYYY')
+FROM DUAL;
+
+
+SELECT 
+	TO_DATE('24년 08월 16일 금요일 오후 2시 15분 30초',
+		'YY"년" MM"월" DD"일" DAY PM HH"시" MI"분" SS"초"')
+FROM DUAL;
+
+
+/*** 연도 패턴  Y, R 차이점 ***/
+
+-- 연도가 두 자리만 작성되어있는 경우
+-- 50 미만 : Y,R 둘 다 누락된 연도 앞부분에 현재 세기(21C == 2000년대) 추가
+-- 50 이상 : Y : 현재 세기(2000년대) 추가
+--		      R : 이전 세기(1900년대) 추가
+
+-- 50 미만 확인
+SELECT 
+	TO_DATE('49-12-25', 'YY-MM-DD'), -- 2049
+	TO_DATE('49-12-25', 'RR-MM-DD')  -- 2049
+FROM DUAL;
+
+-- 50 이상 확인
+SELECT 
+	TO_DATE('50-12-25', 'YY-MM-DD'), -- 2050
+	TO_DATE('50-12-25', 'RR-MM-DD')  -- 1950
+FROM DUAL;
+
+-------------------------------------------------
+
+
+-- TO_NUMBER(문자열 [,패턴]) : 문자열 -> 숫자 변환
+
+SELECT TO_NUMBER('$1,500', '$9,999')
+FROM DUAL;
+
+-----------------------------------------------------
+-----------------------------------------------------
+-----------------------------------------------------
+
+-- <NULL 처리 연산> : IS NULL / IS NOT NULL
+
+
+-- <NULL 처리 함수>
+-- NVL(컬럼명, 컬럼 값이 NULL일 경우 변경할 값)
+
+-- EMPLOYEE 테이블에서
+-- 사번, 이름, 전화번호 조회
+-- 단, 전화번호가 없다면(NULL) '없음' 으로 조회
+SELECT 
+	EMP_ID, 
+	EMP_NAME, 
+	NVL(PHONE, '없음') AS PHONE
+FROM 
+	EMPLOYEE;
+
+
+/* NULL과 산술 연산 시 결과는 무조건 NULL!!! */
+
+-- EMPLOYEE 테이블에서
+-- 이름, 급여, 보너스, 급여 * 보너스 조회
+-- 단, 보너스가 없다면 0으로 계산
+SELECT 
+	EMP_NAME,
+	SALARY,
+	NVL(BONUS, 0) AS BONUS,
+	SALARY * NVL(BONUS, 0) AS 곱셈결과
+FROM 
+	EMPLOYEE;
+
+
+-------------------------------------------------
+
+-- NVL2(컬럼명, NULL이 아닌 경우 변경할 값, 
+--             NULL인 경우 변경할 값)
+
+-- EMPLOYEE 테이블에서
+-- 사번, 이름, 전화번호 조회
+-- 전화 번호가 없으면 '없음'
+-- 전화 번호가 있으면 '010********' 형식으로 변경해서 조회
+
+-- RPAD(문자열, 길이, 바꿀문자)
+--  : 문자열 전체에서 오른쪽을 지정된 길이 만큼 다른 문자로 변경\
+SELECT
+	EMP_ID,
+	EMP_NAME,
+	NVL2(PHONE, 
+		   RPAD(SUBSTR(PHONE,1,3), LENGTH(PHONE), '*'), 
+		  '없음') AS "전화번호"
+FROM EMPLOYEE;
+
+
+------------------------------------------------------
+
+-- <선택 함수>
+-- 여러 가지 경우에 따라 알맞은 결과를 선택하는 함수
+-- (if, switch문과 비슷)
+
+
+-- DECODE(컬럼명 | 계산식, 조건1, 결과1, 조건2, 결과2, ... [,아무것도 만족 X])
+
+-- 컬럼명 | 계산식의 값이 일치하는 조건이 있으면
+-- 해당 조건 오른쪽에 작성된 결과가 반환된다.
+
+
+-- EMPLOYEE 테이블에서 
+-- 모든 사원의 이름, 주민등록번호, 성별 조회
+SELECT
+	EMP_NAME,
+	EMP_NO,	
+	DECODE( SUBSTR(EMP_NO, 8, 1), 
+		'1', '남자', '2', '여자') AS "성별"
+FROM EMPLOYEE; 
+
+
+-- EMPLOYEE 테이블에서
+-- 직급코드가 'J7'인 직원은 급여 + 급여의 10%
+-- 직급코드가 'J6'인 직원은 급여 + 급여의 15%
+-- 직급코드가 'J5'인 직원은 급여 + 급여의 20%
+-- 나머지 직급코드의 직원은 급여 + 급여의 5%  지급
+-- 사원명, 직급코드, 기존급여, 지급급여 조회
+
+SELECT 
+	EMP_NAME,
+	JOB_CODE,
+	SALARY "기존급여",
+	DECODE(JOB_CODE,
+		'J7', SALARY * 1.1, 
+		'J6', SALARY * 1.15,
+		'J5', SALARY * 1.2,
+		      SALARY * 1.05
+	) "지급급여"
+FROM EMPLOYEE;
+
+---------------------------------------------
+
+-- CASE 
+--	  WHEN 조건1 THEN 결과1
+--	  WHEN 조건2 THEN 결과2
+--	  WHEN 조건3 THEN 결과3
+--	  ELSE 결과
+-- END
+
+-- DECODE는 계산식|컬럼 값이 딱 떨어지는 경우에만 사용 가능.
+-- CASE는 계산식|컬럼 값을 범위로 지정할 수 있다. 
+
+
+-- EMPLOYEE 테이블에서 사번, 이름, 급여, 구분을 조회
+-- 구분은 받는 급여에 따라 초급, 중급, 고급으로 조회
+-- 급여 600만 이상 = '고급'
+-- 급여 400만 이상 ~ 600만 미만 = '중급'
+-- 급여 400미만 = '초급'
+-- 단, 부서코드가 D6, D9인 사원만 직급코드 오름차순으로 조회
+
+SELECT
+	EMP_ID 사번,
+	EMP_NAME 이름,
+	SALARY 급여,
+	CASE
+		WHEN SALARY >= 6000000 THEN '고급'
+		WHEN SALARY >= 4000000 THEN '중급'
+		ELSE '초급'
+	END 구분
+FROM EMPLOYEE
+WHERE DEPT_CODE IN ('D6', 'D9')
+ORDER BY JOB_CODE ASC;
+
+
+-------------------------------------------------------------
+
+/************* 그룹 함수 *************/
+
+--  N개의 행의 컬럼 값을 전달하여 1개의 결과가 반환
+--	(그룹의 수가 늘어나면 그룹의 수 만큼 결과를 반환)
+
+-- SUM(숫자가 기록된 컬럼명) : 그룹의 합계를 반환
+
+-- 모든 사원의 급여 합 조회
+SELECT SUM(SALARY) FROM EMPLOYEE;
+-- 94096240
+
+
+-- 부서 코드가 'D6'인 사원의 급여 합 조회
+SELECT SUM(SALARY) 
+FROM EMPLOYEE
+WHERE DEPT_CODE = 'D6';
+-- 13100000
+
+
+-----------------------------------------
+
+-- AVG(숫자만 기록된 컬럼) : 그룹의 평균
+
+-- 모든 사원의 급여 평균 조회
+SELECT FLOOR(AVG(SALARY)) FROM EMPLOYEE;
+-- 4091140
+
+--------------------------------------------
+-- MAX(컬럼명) : 최대값
+-- MIN(컬럼명) : 최소값
+
+-- 부서 코드가 'D6'인 사원들 중 
+-- 제일 많은 급여와, 제일 적은 급여 조회
+SELECT MAX(SALARY), MIN(SALARY)
+FROM EMPLOYEE
+WHERE DEPT_CODE = 'D6';
+
+-- 날짜 대소 비교 : 과거 < 미래
+-- 문자열 대소 비교 : 유니코드순서  (문자열 순서  A < Z)
+
+/* 그룹 함수는 여러 개를 동시에 조회할 수 있다 */
+--> TIP. SELECT 결과 집합인 RESULT SET이
+--       찌그러지지 않은 직각 사각형 형태일 때만 조회 가능!!
+
+
+-- 모든 사원 중
+-- 가장 빠른 입사일, 최근 입사일
+-- 이름 오름차순에서 제일 먼저 작성되는 이름, 마지막에 작성되는 이름
+
+SELECT
+	MIN(HIRE_DATE) "가장 빠른 입사일",
+	MAX(HIRE_DATE) "최근 입사일",
+	MIN(EMP_NAME) "제일 먼저 작성되는 이름",
+	MAX(EMP_NAME) "마지막에 작성되는 이름"
+FROM EMPLOYEE;
+
+
+--------------------------------------------
+
+-- COUNT(* | [DISTINCT] 컬럼명) : 조회된 행의 개수를 반환
+
+-- COUNT(*) : 조회된 모든 행의 개수를 반환
+
+-- COUNT(컬럼명) : 지정된 컬럼 값이 NULL이 아닌 행의 개수를 반환
+-- 					(NULL인 행 미포함)
+
+-- COUNT(DISTINCT 컬럼명) : 
+	-- 지정된 컬럼에서 중복 값을 제외한 행의 개수를 반환
+	-- EX) A A B C D D D E : 5개 (중복은 한 번만 카운트)
+
+
+-- EMPLOYEE 테이블의 모든 행의 개수 조회
+SELECT COUNT(*) FROM EMPLOYEE;
+
+-- EMPLOYEE 테이블에서 부서 코드가 'D5'인 사원의 수 
+SELECT COUNT(*) 
+FROM EMPLOYEE
+WHERE DEPT_CODE = 'D5'; -- 6
+
+-- 전화번호가 등록된 사원의 수
+SELECT COUNT(*)
+FROM EMPLOYEE
+WHERE PHONE IS NOT NULL; -- 20
+
+-- 전체 조회 결과 행 중에서
+-- PHONE 컬럼에 값이 작성된 행만 개수 카운트해서 반환
+SELECT COUNT(PHONE)
+FROM EMPLOYEE; -- 20
+
+
+-- EMPLOYEE 테이블에 존재하는 부서코드의 수를 조회
+-- (EMPLOYEE 테이블에 부서코드가 몇 종류?)
+SELECT COUNT(DISTINCT DEPT_CODE)
+FROM EMPLOYEE; -- 6
+
+
+-- EMPLOYEE 테이블에 존재하는 여자, 남자 사원의 수
+SELECT
+	COUNT( DECODE(SUBSTR(EMP_NO, 8, 1), '2', '여자') ) "여자",
+	COUNT( DECODE(SUBSTR(EMP_NO, 8, 1), '1', '남자') ) "남자"
+FROM EMPLOYEE;
+
 
 
 
