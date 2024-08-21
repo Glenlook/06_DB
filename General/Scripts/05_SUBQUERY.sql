@@ -615,18 +615,52 @@ WHERE HIRE_DATE = (
 
 ----------------------------------------------------------------------------------
 
--- 6. 스칼라 서브쿼리
+-- 6. 스칼라 서브쿼리(== SELECT절에 사용되는 단일행 서브쿼리)
 --    SELECT절에 사용되는 서브쿼리 결과로 1행만 반환
 --    SQL에서 단일 값을 가르켜 '스칼라'라고 함
 
 -- 각 직원들이 속한 직급의 급여 평균 조회
 
+-- 1) 각 직급별 급여 평균 조회
+SELECT JOB_CODE, AVG(SALARY)
+FROM EMPLOYEE
+GROUP BY JOB_CODE
+ORDER BY JOB_CODE ASC;
+
+-- 2) 각 직원의 이름, 직급코드 조회
+SELECT EMP_NAME, JOB_CODE
+FROM EMPLOYEE
+ORDER BY EMP_ID ASC;
+
+-- 3) 각 직원의 이름, 직급코드, "직급별 급여 평균" 조회
+SELECT 
+    EMP_NAME,
+    JOB_CODE, 
+    (SELECT AVG(SALARY)
+     FROM EMPLOYEE "SUB"
+     WHERE SUB.JOB_CODE = MAIN.JOB_CODE
+    ) AS "직급별 급여 평균"
+FROM 
+    EMPLOYEE "MAIN"
+ORDER BY 
+    EMP_ID ASC;
 
 
 -- 모든 사원의 사번, 이름, 관리자사번, 관리자명을 조회
 -- 단 관리자가 없는 경우 '없음'으로 표시
 -- (스칼라 + 상관 쿼리)
-
+SELECT 
+    EMP_ID 사번, 
+    EMP_NAME 이름, 
+    NVL(MANAGER_ID, '없음') 관리자사번,
+    NVL((SELECT EMP_NAME
+         FROM EMPLOYEE SUB
+         WHERE SUB.EMP_ID = MAIN.MANAGER_ID
+    ), '없음') AS 관리자명
+FROM 
+    EMPLOYEE MAIN
+ORDER BY 
+    EMP_ID ASC;
 
 
 
@@ -635,6 +669,11 @@ WHERE HIRE_DATE = (
 
 
 -- 7. 인라인 뷰(INLINE-VIEW)
+
+/* VIEW (객체) : 조회 용도의 가상 테이블
+ *  -> SELECT는 가능하지만 INSERT, UPDATE, DELETE는 불가함
+ * */
+
 --    FROM 절에서 서브쿼리를 사용하는 경우로
 --    서브쿼리가 만든 결과의 집합(RESULT SET)을 테이블 대신에 사용한다.
 
@@ -642,11 +681,50 @@ WHERE HIRE_DATE = (
 -- 전 직원 중 급여가 높은 상위 5명의
 -- 순위, 이름, 급여 조회
 
+-- 1) 전 직원의 급여를 내림차순으로 조회
+SELECT EMP_NAME, SALARY
+FROM EMPLOYEE
+ORDER BY SALARY DESC;
 
+-- 2) ROWNUM을 이용해서 행에 번호를 추가
+-- ROWNUM : 행 번호를 나타내는 가상의 컬럼
+SELECT ROWNUM, EMP_NAME
+FROM EMPLOYEE
+WHERE ROWNUM <= 5;
 
+-- 3) ROWNUM을 이용해서 급여 상위 5인 조회
+SELECT ROWNUM, EMP_NAME, SALARY
+FROM EMPLOYEE
+WHERE ROWNUM <= 5
+ORDER BY SALARY DESC;
+--> 조회 결과가 잘못됨!!! --> EMPLOYEE 테이블 위에서 5명만 조회,정렬된 결과
+
+/* 인라인뷰를 이용하여 해결 가능!!! */
+SELECT 
+     ROWNUM 순위, 
+     EMP_NAME 이름, 
+     SALARY 급여
+FROM 
+    (SELECT EMP_NAME, SALARY
+     FROM EMPLOYEE
+     ORDER BY SALARY DESC)
+     --> 서브쿼리 결과 (23행 2열)를 메인쿼리의 테이블로 인식
+WHERE ROWNUM <= 5;
+     --> 정렬된 서브쿼리 결과에서 1,2,3,4,5 행만 조회
 
 
 -- 급여 평균이 3위 안에 드는 부서의 부서코드와 부서명, 평균급여를 조회
+SELECT ROWNUM || '등' 순위, "부서 코드", "부서명", "급여 평균"
+FROM
+		(SELECT 
+		     NVL(DEPT_CODE, '없음') "부서 코드", 
+		     NVL(DEPT_TITLE, '부서명 없음') "부서명",
+		     FLOOR(AVG(SALARY)) "급여 평균"
+		FROM EMPLOYEE
+		JOIN DEPARTMENT ON (DEPT_CODE = DEPT_ID)
+		GROUP BY DEPT_CODE, DEPT_TITLE
+		ORDER BY "급여 평균" DESC)
+WHERE ROWNUM <= 3; -- 서브쿼리 조회 결과에서 1,2,3행만 조회
 
 
 ------------------------------------------------------------------------
@@ -656,9 +734,30 @@ WHERE HIRE_DATE = (
 --    인라인뷰로 사용될 서브쿼리에 주로 사용됨
 --    실행 속도도 빨라진다는 장점이 있다. 
 
--- 
+
 -- 전 직원의 급여 순위 
 -- 순위, 이름, 급여 조회
+-- 단, 10위 까지만 조회
+
+-- 1) FROM 절에 서브쿼리 직접 작성한 형태
+SELECT ROWNUM || '위' 순위, 이름, 급여
+FROM
+    (SELECT EMP_NAME 이름, SALARY 급여
+     FROM EMPLOYEE
+     ORDER BY SALARY DESC)
+WHERE ROWNUM <= 10;
+
+-- 2) WITH를 이용하기
+WITH TOP_SALARY -- 서브쿼리 이름 지정
+AS ( -- 저장할 서브쿼리 작성
+    SELECT EMP_NAME 이름, SALARY 급여
+    FROM EMPLOYEE
+    ORDER BY SALARY DESC
+)
+
+SELECT ROWNUM || '위' 순위, 이름, 급여
+FROM TOP_SALARY
+WHERE ROWNUM <= 10;
 
 --------------------------------------------------------------------------
 
@@ -672,6 +771,78 @@ WHERE HIRE_DATE = (
 
 -- DENSE_RANK() OVER : 동일한 순위 이후의 등수를 이후의 순위로 계산
 --                     EX) 공동 1위가 2명이어도 다음 순위는 2위
+
+
+-- 급여를 많이 받는 순서대로 조회
+
+-- 1) RANK() OVER : 
+--      OVER() 괄호에 작성된 정렬 기준대로 정렬 후 순위 지정
+--      단, 값의 크기가 같다면 공동 순위 지정, 지정된 만큼 순위 건너뛰기
+SELECT 
+    RANK() OVER(ORDER BY SALARY DESC) || '위' 순위,
+    --> SALARY 내림차순으로 정렬하고 순위를 지정함
+    EMP_NAME,
+    SALARY
+FROM EMPLOYEE;
+
+SELECT 
+	  ROWNUM "순위", 
+	  EMP_NAME, 
+	  SALARY
+FROM 
+	 (SELECT EMP_NAME, SALARY
+	  FROM EMPLOYEE
+	  ORDER BY SALARY DESC);
+
+
+-- 2) DENSE_RANK() OVER :
+--       공동 순위 지정 후 순위 건너뛰기를 하지 않음
+SELECT 
+    DENSE_RANK() OVER(ORDER BY SALARY DESC) || '위' 순위,
+    EMP_NAME,
+    SALARY
+FROM EMPLOYEE;
+
+
+-----------------------------------------------------------
+
+/* ROWNUM 사용 시 주위사항!!! */
+--> ROWNUM이 WHERE절에 사용되는 경우
+--  항상 범위에 1부터 연속적인 범위가 포함되어야만 한다!!!
+ --> ROWNUM은 RESULT SET 완성 후 적용되는 가상 컬럼이라서
+ --  정해진 규칙 (1부터 1씩 증가)을 만족하지 못하면 사용 불가
+
+-- 급여 순위 3위 ~ 7위까지 조회하기
+SELECT 순위, EMP_NAME, SALARY
+FROM 
+	 (SELECT 
+		    RANK() OVER(ORDER BY SALARY DESC) || '위' "순위",
+		    EMP_NAME,
+		    SALARY
+	  FROM EMPLOYEE)
+WHERE 
+--  ROWNUM BETWEEN 3 AND 7; -- 3행 이상 7행 이하
+    ROWNUM BETWEEN 1 AND 7; -- 1행 이상 7행 이하
+    
+
+-- 해결 방법 : ROWNUM 대신 "순위" 사용
+SELECT "순위", EMP_NAME, SALARY
+FROM 
+	 (SELECT 
+		    RANK() OVER(ORDER BY SALARY DESC) || '위' "순위",
+		    EMP_NAME,
+		    SALARY
+	  FROM EMPLOYEE)
+WHERE "순위" BETWEEN 3 || '위' AND 7 || '위';
+
+
+
+
+
+
+
+
+
 
 
 
